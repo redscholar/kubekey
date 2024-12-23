@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -10,7 +11,6 @@ import (
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubesphere/kubekey/v4/cmd/kk/app/options"
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/manager"
 	"github.com/kubesphere/kubekey/v4/pkg/proxy"
@@ -42,23 +42,15 @@ func newPipelineCommand() *cobra.Command {
 			}
 			// get pipeline
 			var pipeline = new(kkcorev1.Pipeline)
-			if err := client.Get(ctx, ctrlclient.ObjectKey{
+			if err := client.Get(options.CTX, ctrlclient.ObjectKey{
 				Name:      o.Name,
 				Namespace: o.Namespace,
 			}, pipeline); err != nil {
 				return err
 			}
-			// get config
-			var config = new(kkcorev1.Config)
-			if err := client.Get(ctx, ctrlclient.ObjectKey{
-				Name:      pipeline.Spec.ConfigRef.Name,
-				Namespace: pipeline.Spec.ConfigRef.Namespace,
-			}, config); err != nil {
-				return err
-			}
 			// get inventory
 			var inventory = new(kkcorev1.Inventory)
-			if err := client.Get(ctx, ctrlclient.ObjectKey{
+			if err := client.Get(options.CTX, ctrlclient.ObjectKey{
 				Name:      pipeline.Spec.InventoryRef.Name,
 				Namespace: pipeline.Spec.InventoryRef.Namespace,
 			}, inventory); err != nil {
@@ -67,10 +59,9 @@ func newPipelineCommand() *cobra.Command {
 
 			return manager.NewCommandManager(manager.CommandManagerOptions{
 				Pipeline:  pipeline,
-				Config:    config,
 				Inventory: inventory,
 				Client:    client,
-			}).Run(ctx)
+			}).Run(options.CTX)
 		},
 	}
 

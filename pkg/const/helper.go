@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 )
 
 var workDirOnce = &sync.Once{}

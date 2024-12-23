@@ -27,10 +27,10 @@ import (
 	"strings"
 	"sync"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/klog/v2"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/converter/tmpl"
 	"github.com/kubesphere/kubekey/v4/pkg/variable/source"
@@ -106,7 +106,7 @@ func (v value) getParameterVariable() map[string]any {
 			_const.VariableGlobalHosts: globalHosts,
 		})
 		val = combineVariables(val, map[string]any{
-			_const.VariableGroups: convertGroup(v.Inventory),
+			_const.VariableGroups: ConvertGroup(v.Inventory),
 		})
 		externalVal[hostname] = val
 	}
@@ -178,12 +178,16 @@ var GetHostnames = func(name []string) GetFunc {
 		}
 		var hs []string
 		for _, n := range name {
+			// try parse hostname by Config.
+			if pn, err := tmpl.ParseString(Extension2Variables(vv.value.Config.Spec), n); err == nil {
+				n = pn
+			}
 			// add host to hs
 			if _, ok := vv.value.Hosts[n]; ok {
 				hs = append(hs, n)
 			}
 			// add group's host to gs
-			for gn, gv := range convertGroup(vv.value.Inventory) {
+			for gn, gv := range ConvertGroup(vv.value.Inventory) {
 				if gn == n {
 					if gvd, ok := gv.([]string); ok {
 						hs = mergeSlice(hs, gvd)
@@ -202,7 +206,7 @@ var GetHostnames = func(name []string) GetFunc {
 
 					return nil, err
 				}
-				if group, ok := convertGroup(vv.value.Inventory)[match[1]].([]string); ok {
+				if group, ok := ConvertGroup(vv.value.Inventory)[match[1]].([]string); ok {
 					if index >= len(group) {
 						return nil, fmt.Errorf("index %v out of range for group %s", index, group)
 					}
@@ -213,7 +217,7 @@ var GetHostnames = func(name []string) GetFunc {
 			// add random host in group
 			regexForRandom := regexp.MustCompile(`^(.+?)\s*\|\s*random$`)
 			if match := regexForRandom.FindStringSubmatch(strings.TrimSpace(n)); match != nil {
-				if group, ok := convertGroup(vv.value.Inventory)[match[1]].([]string); ok {
+				if group, ok := ConvertGroup(vv.value.Inventory)[match[1]].([]string); ok {
 					hs = append(hs, group[rand.Intn(len(group))])
 				}
 			}

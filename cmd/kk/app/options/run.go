@@ -19,16 +19,15 @@ package options
 import (
 	"fmt"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cliflag "k8s.io/component-base/cli/flag"
-
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 )
 
 // KubeKeyRunOptions for NewKubeKeyRunOptions
 type KubeKeyRunOptions struct {
-	commonOptions
+	CommonOptions
 	// ProjectAddr is the storage for executable packages (in Ansible format).
 	// When starting with http or https, it will be obtained from a Git repository.
 	// When starting with file path, it will be obtained from the local path.
@@ -54,7 +53,7 @@ type KubeKeyRunOptions struct {
 func NewKubeKeyRunOptions() *KubeKeyRunOptions {
 	// add default values
 	o := &KubeKeyRunOptions{
-		commonOptions: newCommonOptions(),
+		CommonOptions: NewCommonOptions(),
 	}
 
 	return o
@@ -62,7 +61,7 @@ func NewKubeKeyRunOptions() *KubeKeyRunOptions {
 
 // Flags add to newRunCommand
 func (o *KubeKeyRunOptions) Flags() cliflag.NamedFlagSets {
-	fss := o.commonOptions.flags()
+	fss := o.CommonOptions.Flags()
 	gitfs := fss.FlagSet("project")
 	gitfs.StringVar(&o.ProjectAddr, "project-addr", o.ProjectAddr, "the storage for executable packages (in Ansible format)."+
 		" When starting with http or https, it will be obtained from a Git repository."+
@@ -108,10 +107,9 @@ func (o *KubeKeyRunOptions) Complete(cmd *cobra.Command, args []string) (*kkcore
 		SkipTags: o.SkipTags,
 		Debug:    o.Debug,
 	}
-	config, inventory, err := o.completeRef(pipeline)
-	if err != nil {
+	if err := o.CompleteRef(pipeline); err != nil {
 		return nil, nil, nil, err
 	}
 
-	return pipeline, config, inventory, nil
+	return pipeline, Config, Inventory, nil
 }

@@ -1,0 +1,17 @@
+---
+- name: Create binaries dir
+  command: |
+    mkdir -p {{ .binary_dir }}
+
+- name: Download binaries
+  block:
+    # the binaries which download by curl
+    - include_tasks: download_by_curl.yaml
+    # the binaries which download by helm
+    - include_tasks: download_by_helm.yaml
+    # download remote images to local
+    - name: Download images
+      image:
+        pull:
+          manifests: "{{ .image_manifests | toJson }}"
+      when: .image_manifests | default list | len | lt 0

@@ -20,9 +20,8 @@ import (
 	"context"
 	"os"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
-
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 )
 
 // Manager shared dependencies such as Addr and , and provides them to Runnable.
@@ -44,7 +43,6 @@ type CommandManagerOptions struct {
 func NewCommandManager(o CommandManagerOptions) Manager {
 	return &commandManager{
 		Pipeline:  o.Pipeline,
-		Config:    o.Config,
 		Inventory: o.Inventory,
 		Client:    o.Client,
 		logOutput: os.Stdout,

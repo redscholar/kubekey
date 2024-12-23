@@ -25,12 +25,12 @@ import (
 	"strings"
 	"time"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/converter/tmpl"
 )
@@ -69,13 +69,27 @@ func combineVariables(m1, m2 map[string]any) map[string]any {
 	return mv
 }
 
-func convertGroup(inv kkcorev1.Inventory) map[string]any {
+// ConvertGroup converts the inventory into a map of groups with their respective hosts.
+// It ensures that all hosts are included in the "all" group and adds a default localhost if not present.
+// It also creates an "ungrouped" group for hosts that are not part of any specific group.
+//
+// Parameters:
+//
+//	inv (kkcorev1.Inventory): The inventory containing hosts and groups specifications.
+//
+// Returns:
+//
+//	map[string]any: A map where keys are group names and values are lists of hostnames.
+func ConvertGroup(inv kkcorev1.Inventory) map[string]any {
 	groups := make(map[string]any)
 	all := make([]string, 0)
 
 	for hn := range inv.Spec.Hosts {
 		all = append(all, hn)
 	}
+
+	ungrouped := make([]string, len(all))
+	copy(ungrouped, all)
 
 	if !slices.Contains(all, _const.VariableLocalHost) { // set default localhost
 		all = append(all, _const.VariableLocalHost)
@@ -85,7 +99,16 @@ func convertGroup(inv kkcorev1.Inventory) map[string]any {
 
 	for gn := range inv.Spec.Groups {
 		groups[gn] = hostsInGroup(inv, gn)
+		if hosts, ok := groups[gn].([]string); ok {
+			for _, v := range hosts {
+				if slices.Contains(ungrouped, v) {
+					ungrouped = slices.Delete(ungrouped, slices.Index(ungrouped, v), slices.Index(ungrouped, v)+1)
+				}
+			}
+		}
 	}
+
+	groups[_const.VariableUnGrouped] = ungrouped
 
 	return groups
 }
@@ -339,7 +362,12 @@ func IntVar(d map[string]any, vars map[string]any, key string) (*int, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return ptr.To(int(v.Int())), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return ptr.To(int(v.Uint())), nil
+		u := v.Uint()
+		if u > uint64(^uint(0)>>1) {
+			return nil, fmt.Errorf("variable \"%s\" value %d overflows int", key, u)
+		}
+
+		return ptr.To(int(u)), nil
 	case reflect.Float32, reflect.Float64:
 		return ptr.To(int(v.Float())), nil
 	case reflect.String:

@@ -7,6 +7,8 @@ ENV GOPROXY ${goproxy}
 
 WORKDIR /workspace
 
+COPY api/go.mod api/go.mod
+COPY api/go.sum api/go.sum
 COPY go.mod go.mod
 COPY go.sum go.sum
 

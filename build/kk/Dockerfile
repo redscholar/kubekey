@@ -7,6 +7,8 @@ ENV GOPROXY ${goproxy}
 
 WORKDIR /workspace
 
+COPY api/go.mod api/go.mod
+COPY api/go.sum api/go.sum
 COPY go.mod go.mod
 COPY go.sum go.sum
 
@@ -40,5 +42,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/s
 
 COPY --from=ghcr.io/oras-project/oras:v1.1.0 /bin/oras /usr/local/bin/oras
 COPY --from=builder /workspace/kk /usr/local/bin/kk
+# add builtin capkk project 
+COPY --from=builder /workspace/builtin/capkk/* /capkk/project
 
 ENTRYPOINT ["sh"]

@@ -20,12 +20,12 @@ import (
 	"context"
 	"fmt"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
+	kkcorev1alpha1 "github.com/kubesphere/kubekey/api/core/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/klog/v2"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
-	kkcorev1alpha1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1alpha1"
 	"github.com/kubesphere/kubekey/v4/pkg/connector"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/variable"
@@ -105,8 +105,10 @@ func init() {
 	utilruntime.Must(RegisterModule("image", ModuleImage))
 }
 
+type key struct{}
+
 // ConnKey for connector which store in context
-var ConnKey = struct{}{}
+var ConnKey = &key{}
 
 func getConnector(ctx context.Context, host string, data map[string]any) (connector.Connector, error) {
 	var conn connector.Connector

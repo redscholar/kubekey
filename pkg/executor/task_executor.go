@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
+	kkcorev1alpha1 "github.com/kubesphere/kubekey/api/core/v1alpha1"
 	"github.com/schollz/progressbar/v3"
+	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
-	kkcorev1alpha1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1alpha1"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/converter/tmpl"
 	"github.com/kubesphere/kubekey/v4/pkg/modules"
@@ -323,10 +324,14 @@ func (e taskExecutor) dealRegister(stdout, stderr, host string) error {
 	if e.task.Spec.Register != "" {
 		var stdoutResult any = stdout
 		var stderrResult any = stderr
-		// try to convert by json
-		_ = json.Unmarshal([]byte(stdout), &stdoutResult)
-		// try to convert by json
-		_ = json.Unmarshal([]byte(stderr), &stderrResult)
+		// try to convert by json or yaml
+		if (strings.HasPrefix(stdout, "{") || strings.HasPrefix(stdout, "[")) && (strings.HasSuffix(stdout, "}") || strings.HasSuffix(stdout, "]")) {
+			_ = json.Unmarshal([]byte(stdout), &stdoutResult)
+			_ = json.Unmarshal([]byte(stderr), &stderrResult)
+		} else {
+			_ = yaml.Unmarshal([]byte(stdout), &stdoutResult)
+			_ = yaml.Unmarshal([]byte(stderr), &stderrResult)
+		}
 		// set variable to parent location
 		if err := e.variable.Merge(variable.MergeRuntimeVariable(map[string]any{
 			e.task.Spec.Register: map[string]any{

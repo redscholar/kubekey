@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlcontroller "sigs.k8s.io/controller-runtime/pkg/controller"
 
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/controllers"
@@ -35,7 +36,7 @@ type controllerManager struct {
 }
 
 // Run controllerManager, run controller in kubernetes
-func (c controllerManager) Run(ctx context.Context) error {
+func (m controllerManager) Run(ctx context.Context) error {
 	ctrl.SetLogger(klog.NewKlogr())
 	restconfig, err := ctrl.GetConfig()
 	if err != nil {
@@ -48,46 +49,33 @@ func (c controllerManager) Run(ctx context.Context) error {
 	}
 
 	mgr, err := ctrl.NewManager(restconfig, ctrl.Options{
-		Scheme:           _const.Scheme,
-		LeaderElection:   c.LeaderElection,
-		LeaderElectionID: "controller-leader-election-kk",
+		Scheme:                 _const.Scheme,
+		LeaderElection:         m.LeaderElection,
+		LeaderElectionID:       "controller-leader-election-kk",
+		HealthProbeBindAddress: ":9440",
 	})
 	if err != nil {
 		return fmt.Errorf("could not create controller manager: %w", err)
 	}
 
-	if err := (&controllers.PipelineReconciler{
-		Client:                  mgr.GetClient(),
-		EventRecorder:           mgr.GetEventRecorderFor("pipeline"),
-		Scheme:                  mgr.GetScheme(),
-		MaxConcurrentReconciles: c.MaxConcurrentReconciles,
-	}).SetupWithManager(mgr); err != nil {
-		klog.ErrorS(err, "create pipeline controller error")
-
-		return err
-	}
-
-	if err := (&controllers.KKClusterReconciler{
-		Client:                  mgr.GetClient(),
-		EventRecorder:           mgr.GetEventRecorderFor("kk-cluster-controller"),
-		Scheme:                  mgr.GetScheme(),
-		MaxConcurrentReconciles: c.MaxConcurrentReconciles,
-	}).SetupWithManager(ctx, mgr); err != nil {
-		klog.ErrorS(err, "create kk-cluster controller error")
-
-		return err
-	}
-
-	if err := (&controllers.KKMachineReconciler{
-		Client:                  mgr.GetClient(),
-		EventRecorder:           mgr.GetEventRecorderFor("kk-machine-controller"),
-		Scheme:                  mgr.GetScheme(),
-		MaxConcurrentReconciles: c.MaxConcurrentReconciles,
-	}).SetupWithManager(ctx, mgr); err != nil {
-		klog.ErrorS(err, "create kk-machine controller error")
-
+	if err := m.register(mgr); err != nil {
 		return err
 	}
 
 	return mgr.Start(ctx)
+}
+
+func (m controllerManager) register(mgr ctrl.Manager) error {
+	o := &ctrlcontroller.Options{
+		MaxConcurrentReconciles: m.MaxConcurrentReconciles,
+	}
+	for _, c := range controllers.Controllers {
+		if err := c.SetupWithManager(mgr, *o); err != nil {
+			klog.ErrorS(err, "register controller error", "controller", c.Name())
+
+			return err
+		}
+	}
+
+	return nil
 }

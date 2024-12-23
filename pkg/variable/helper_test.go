@@ -19,9 +19,10 @@ package variable
 import (
 	"testing"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/runtime"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 	"github.com/kubesphere/kubekey/v4/pkg/converter/tmpl"
 )
 
@@ -353,6 +354,42 @@ func TestHostsInGroup(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.ElementsMatch(t, tc.except, hostsInGroup(tc.inventory, tc.groupName))
+		})
+	}
+}
+
+func TestExtension2Slice(t *testing.T) {
+	testcases := []struct {
+		name   string
+		data   map[string]any
+		ext    runtime.RawExtension
+		except []any
+	}{
+		{
+			name: "succeed",
+			data: map[string]any{
+				"a": []any{"a1", "a2"},
+			},
+			ext: runtime.RawExtension{
+				Raw: []byte(`{{ .a | toJson }}`),
+			},
+			except: []any{"a1", "a2"},
+		},
+		{
+			name: "empty ext",
+			data: map[string]any{
+				"b": []any{"b1", "b2"},
+			},
+			ext: runtime.RawExtension{
+				Raw: []byte(`{{ .a | toJson }}`),
+			},
+			except: make([]any, 0),
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.ElementsMatch(t, tc.except, Extension2Slice(tc.data, tc.ext))
 		})
 	}
 }

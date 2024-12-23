@@ -24,29 +24,36 @@ import (
 	"path/filepath"
 	"strings"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/yaml"
-
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 )
 
-var defaultConfig = &kkcorev1.Config{
+// Config for each command
+var Config = &kkcorev1.Config{
 	TypeMeta: metav1.TypeMeta{
 		APIVersion: kkcorev1.SchemeGroupVersion.String(),
 		Kind:       "Config",
 	},
-	ObjectMeta: metav1.ObjectMeta{Name: "default"}}
-var defaultInventory = &kkcorev1.Inventory{
+}
+
+// Inventory for each command
+var Inventory = &kkcorev1.Inventory{
 	TypeMeta: metav1.TypeMeta{
 		APIVersion: kkcorev1.SchemeGroupVersion.String(),
 		Kind:       "Inventory",
 	},
-	ObjectMeta: metav1.ObjectMeta{Name: "default"}}
+	ObjectMeta: metav1.ObjectMeta{Name: "default"},
+}
 
-type commonOptions struct {
+// CTX cancel by shutdown signal
+var CTX = signals.SetupSignalHandler()
+
+type CommonOptions struct {
 	// Playbook which to execute.
 	Playbook string
 	// HostFile is the path of host file
@@ -65,8 +72,8 @@ type commonOptions struct {
 	Namespace string
 }
 
-func newCommonOptions() commonOptions {
-	o := commonOptions{
+func NewCommonOptions() CommonOptions {
+	o := CommonOptions{
 		Namespace: metav1.NamespaceDefault,
 	}
 
@@ -81,7 +88,7 @@ func newCommonOptions() commonOptions {
 	return o
 }
 
-func (o *commonOptions) flags() cliflag.NamedFlagSets {
+func (o *CommonOptions) Flags() cliflag.NamedFlagSets {
 	fss := cliflag.NamedFlagSets{}
 	gfs := fss.FlagSet("generic")
 	gfs.StringVar(&o.WorkDir, "workdir", o.WorkDir, "the base Dir for kubekey. Default current dir. ")
@@ -95,105 +102,88 @@ func (o *commonOptions) flags() cliflag.NamedFlagSets {
 	return fss
 }
 
-func (o *commonOptions) completeRef(pipeline *kkcorev1.Pipeline) (*kkcorev1.Config, *kkcorev1.Inventory, error) {
+func (o *CommonOptions) CompleteRef(pipeline *kkcorev1.Pipeline) error {
 	if !filepath.IsAbs(o.WorkDir) {
 		wd, err := os.Getwd()
 		if err != nil {
-			return nil, nil, fmt.Errorf("get current dir error: %w", err)
+			return fmt.Errorf("get current dir error: %w", err)
 		}
 		o.WorkDir = filepath.Join(wd, o.WorkDir)
 	}
 	// complete config
-	config, err := o.genConfig()
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate config error: %w", err)
+	if err := o.completeConfig(Config); err != nil {
+		return fmt.Errorf("generate config error: %w", err)
 	}
-	pipeline.Spec.ConfigRef = &corev1.ObjectReference{
-		Kind:            config.Kind,
-		Namespace:       config.Namespace,
-		Name:            config.Name,
-		UID:             config.UID,
-		APIVersion:      config.APIVersion,
-		ResourceVersion: config.ResourceVersion,
-	}
+	pipeline.Spec.Config = *Config
+
 	// complete inventory
-	inventory, err := o.genInventory()
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate inventory error: %w", err)
+	if err := o.completeInventory(Inventory); err != nil {
+		return fmt.Errorf("generate inventory error: %w", err)
 	}
 	pipeline.Spec.InventoryRef = &corev1.ObjectReference{
-		Kind:            inventory.Kind,
-		Namespace:       inventory.Namespace,
-		Name:            inventory.Name,
-		UID:             inventory.UID,
-		APIVersion:      inventory.APIVersion,
-		ResourceVersion: inventory.ResourceVersion,
+		Kind:            Inventory.Kind,
+		Namespace:       Inventory.Namespace,
+		Name:            Inventory.Name,
+		UID:             Inventory.UID,
+		APIVersion:      Inventory.APIVersion,
+		ResourceVersion: Inventory.ResourceVersion,
 	}
 
-	return config, inventory, nil
+	return nil
 }
 
 // genConfig generate config by ConfigFile and set value by command args.
-func (o *commonOptions) genConfig() (*kkcorev1.Config, error) {
-	config := defaultConfig.DeepCopy()
-	if o.ConfigFile != "" {
+func (o *CommonOptions) completeConfig(config *kkcorev1.Config) error {
+	if o.ConfigFile != "" { // override default config
 		cdata, err := os.ReadFile(o.ConfigFile)
 		if err != nil {
-			return nil, fmt.Errorf("read config file error: %w", err)
+			return fmt.Errorf("failed to read config file. error: %w", err)
 		}
 		config = &kkcorev1.Config{}
 		if err := yaml.Unmarshal(cdata, config); err != nil {
-			return nil, fmt.Errorf("unmarshal config file error: %w", err)
+			return fmt.Errorf("failed to unmarshal config file. error: %w", err)
 		}
 	}
 	// set value by command args
-	if o.Namespace != "" {
-		config.Namespace = o.Namespace
-	}
 	if wd, err := config.GetValue("work_dir"); err == nil && wd != nil {
 		// if work_dir is defined in config, use it. otherwise use current dir.
 		if workDir, ok := wd.(string); ok {
 			o.WorkDir = workDir
 		}
 	} else if err := config.SetValue("work_dir", o.WorkDir); err != nil {
-		return nil, fmt.Errorf("work_dir to config error: %w", err)
+		return fmt.Errorf("failed to set \"work_dir\" in config. error: %w", err)
 	}
 	if o.Artifact != "" {
 		// override artifact_file in config
 		if err := config.SetValue("artifact_file", o.Artifact); err != nil {
-			return nil, fmt.Errorf("artifact file to config error: %w", err)
+			return fmt.Errorf("failed to set \"artifact_file\" in config. error: %w", err)
 		}
 	}
 	for _, s := range o.Set {
 		for _, setVal := range strings.Split(unescapeString(s), ",") {
 			i := strings.Index(setVal, "=")
 			if i == 0 || i == -1 {
-				return nil, errors.New("--set value should be k=v")
+				return errors.New("--set value should be k=v")
 			}
 			if err := setValue(config, setVal[:i], setVal[i+1:]); err != nil {
-				return nil, fmt.Errorf("--set value to config error: %w", err)
+				return fmt.Errorf("--set value to config error: %w", err)
 			}
 		}
 	}
 
-	return config, nil
+	return nil
 }
 
 // genConfig generate config by ConfigFile and set value by command args.
-func (o *commonOptions) genInventory() (*kkcorev1.Inventory, error) {
-	inventory := defaultInventory.DeepCopy()
-	if o.InventoryFile != "" {
+func (o *CommonOptions) completeInventory(inventory *kkcorev1.Inventory) error {
+	if o.InventoryFile != "" { // override default inventory
 		cdata, err := os.ReadFile(o.InventoryFile)
 		if err != nil {
-			klog.V(4).ErrorS(err, "read config file error")
-
-			return nil, err
+			return fmt.Errorf("failed to read inventory file. error: %w", err)
 		}
 		inventory = &kkcorev1.Inventory{}
 		if err := yaml.Unmarshal(cdata, inventory); err != nil {
-			klog.V(4).ErrorS(err, "unmarshal config file error")
-
-			return nil, err
+			return fmt.Errorf("failed to unmarshal config file. error: %w", err)
 		}
 	}
 	// set value by command args
@@ -201,7 +191,7 @@ func (o *commonOptions) genInventory() (*kkcorev1.Inventory, error) {
 		inventory.Namespace = o.Namespace
 	}
 
-	return inventory, nil
+	return nil
 }
 
 // setValue set key: val in config.

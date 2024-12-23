@@ -1,0 +1,6 @@
+---
+- name: Stop if unknown network plugin
+  assert:
+    that: .cluster_require.require_network_plugin | has .cni.type
+    fail_msg: |
+      kube_network_plugin:"{{ .cni.type }}" is not supported

@@ -66,8 +66,8 @@ type fileRESTOptionsGetter struct {
 	storageConfig *storagebackend.Config
 }
 
-// GetRESTOptions return apigeneric.RESTOptions
-func (f fileRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource) (apigeneric.RESTOptions, error) {
+// GetRESTOptions implements generic.RESTOptionsGetter.
+func (f *fileRESTOptionsGetter) GetRESTOptions(resource schema.GroupResource, example runtime.Object) (apigeneric.RESTOptions, error) {
 	prefix := filepath.Join(_const.GetRuntimeDir(), f.gv.Group, f.gv.Version, resource.Resource)
 
 	return apigeneric.RESTOptions{

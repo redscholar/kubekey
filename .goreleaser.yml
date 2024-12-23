@@ -28,6 +28,9 @@ archives:
     files:
       - none*
 
+files:
+  - config/capkk/infrastructure-components.yaml
+
 checksum:
   name_template: "{{ .ProjectName }}_v{{ .Version }}_checksums.txt"
 

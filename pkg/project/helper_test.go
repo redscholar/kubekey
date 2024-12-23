@@ -21,9 +21,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	kkprojectv1 "github.com/kubesphere/kubekey/api/project/v1"
 	"github.com/stretchr/testify/assert"
-
-	kkprojectv1 "github.com/kubesphere/kubekey/v4/pkg/apis/project/v1"
 )
 
 func TestGetPlaybookBaseFromAbsPlaybook(t *testing.T) {

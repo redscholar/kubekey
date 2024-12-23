@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"fmt"
 	"math"
+	"net"
 	"strings"
 	"text/template"
 
@@ -19,6 +21,7 @@ func funcMap() template.FuncMap {
 	// add custom function
 	f["toYaml"] = toYAML
 	f["ipInCIDR"] = ipInCIDR
+	f["ipFamily"] = ipFamily
 	f["pow"] = pow
 
 	return f
@@ -52,6 +55,19 @@ func ipInCIDR(index int, cidr string) (string, error) {
 	index = min(index, len(ips)-1)
 
 	return ips[index], nil
+}
+
+// ipFamily returns the IP family (IPv4 or IPv6) of the given IP address.
+func ipFamily(cidr string) (string, error) {
+	ip, _, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "Invalid", fmt.Errorf("could not parse CIDR: %w", err)
+	}
+	if ip.To4() != nil {
+		return "IPv4", nil
+	}
+
+	return "IPv6", nil
 }
 
 // pow Get the "pow" power of "base". (base ** pow)

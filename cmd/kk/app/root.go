@@ -17,18 +17,24 @@ limitations under the License.
 package app
 
 import (
+	"context"
+	"fmt"
+
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubesphere/kubekey/v4/cmd/kk/app/options"
+	_const "github.com/kubesphere/kubekey/v4/pkg/const"
+	"github.com/kubesphere/kubekey/v4/pkg/manager"
+	"github.com/kubesphere/kubekey/v4/pkg/proxy"
 )
-
-// ctx cancel by shutdown signal
-var ctx = signals.SetupSignalHandler()
 
 var internalCommand = make([]*cobra.Command, 0)
 
-func registerInternalCommand(command *cobra.Command) {
+func RegisterInternalCommand(command *cobra.Command) {
 	for _, c := range internalCommand {
 		if c.Name() == command.Name() {
 			// command has register. skip
@@ -48,13 +54,13 @@ func NewRootCommand() *cobra.Command {
 				return err
 			}
 
-			return options.InitProfiling(ctx)
+			return options.InitProfiling(options.CTX)
 		},
 		PersistentPostRunE: func(*cobra.Command, []string) error {
 			return options.FlushProfiling()
 		},
 	}
-	cmd.SetContext(ctx)
+	cmd.SetContext(options.CTX)
 
 	// add common flag
 	flags := cmd.PersistentFlags()
@@ -69,4 +75,38 @@ func NewRootCommand() *cobra.Command {
 	cmd.AddCommand(internalCommand...)
 
 	return cmd
+}
+
+// CommandRunE. run pipeline use command and return a error.
+func CommandRunE(ctx context.Context, pipeline *kkcorev1.Pipeline, config *kkcorev1.Config, inventory *kkcorev1.Inventory) error {
+	restconfig, err := proxy.NewConfig(&rest.Config{})
+	if err != nil {
+		return fmt.Errorf("could not get rest config: %w", err)
+	}
+	client, err := ctrlclient.New(restconfig, ctrlclient.Options{
+		Scheme: _const.Scheme,
+	})
+	if err != nil {
+		return fmt.Errorf("could not get runtime-client: %w", err)
+	}
+	// create inventory
+	if err := client.Create(ctx, inventory); err != nil {
+		klog.ErrorS(err, "Create inventory error", "pipeline", ctrlclient.ObjectKeyFromObject(pipeline))
+
+		return err
+	}
+	// create pipeline
+	// pipeline.Status.Phase = kkcorev1.PipelinePhaseRunning
+	if err := client.Create(ctx, pipeline); err != nil {
+		klog.ErrorS(err, "Create pipeline error", "pipeline", ctrlclient.ObjectKeyFromObject(pipeline))
+
+		return err
+	}
+
+	return manager.NewCommandManager(manager.CommandManagerOptions{
+		Pipeline:  pipeline,
+		Config:    config,
+		Inventory: inventory,
+		Client:    client,
+	}).Run(ctx)
 }

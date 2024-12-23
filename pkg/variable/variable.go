@@ -24,11 +24,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	kkcorev1 "github.com/kubesphere/kubekey/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	kkcorev1 "github.com/kubesphere/kubekey/v4/pkg/apis/core/v1"
 	_const "github.com/kubesphere/kubekey/v4/pkg/const"
 	"github.com/kubesphere/kubekey/v4/pkg/variable/source"
 )
@@ -74,16 +74,6 @@ func New(ctx context.Context, client ctrlclient.Client, pipeline kkcorev1.Pipeli
 		return nil, fmt.Errorf("unsupported source type: %v", st)
 	}
 
-	// get config
-	var config = &kkcorev1.Config{}
-	if pipeline.Spec.ConfigRef != nil {
-		if err := client.Get(ctx, types.NamespacedName{Namespace: pipeline.Spec.ConfigRef.Namespace, Name: pipeline.Spec.ConfigRef.Name}, config); err != nil {
-			klog.V(4).ErrorS(err, "get config from pipeline error", "config", pipeline.Spec.ConfigRef, "pipeline", ctrlclient.ObjectKeyFromObject(&pipeline))
-
-			return nil, err
-		}
-	}
-
 	// get inventory
 	var inventory = &kkcorev1.Inventory{}
 	if pipeline.Spec.InventoryRef != nil {
@@ -98,13 +88,13 @@ func New(ctx context.Context, client ctrlclient.Client, pipeline kkcorev1.Pipeli
 		key:    string(pipeline.UID),
 		source: s,
 		value: &value{
-			Config:    *config,
+			Config:    pipeline.Spec.Config,
 			Inventory: *inventory,
 			Hosts:     make(map[string]host),
 		},
 	}
 
-	if gd, ok := convertGroup(*inventory)["all"].([]string); ok {
+	if gd, ok := ConvertGroup(*inventory)["all"].([]string); ok {
 		for _, hostname := range gd {
 			v.value.Hosts[hostname] = host{
 				RemoteVars:  make(map[string]any),
