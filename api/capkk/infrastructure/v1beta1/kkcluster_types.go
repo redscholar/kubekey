@@ -83,6 +83,27 @@ const (
 	ControlPlaneEndpointTypeVIP ControlPlaneEndpointType = "kube_vip"
 )
 
+type KKClusterPhase string
+
+const (
+	// KKClusterPhaseNotInstall indicates that only configuration information has been created, but the cluster installation task has not been executed.
+	KKClusterPhaseNotInstall KKClusterPhase = "NotInstall"
+	// KKClusterPhaseInitializing indicates that the cluster is currently executing installation tasks.
+	KKClusterPhaseInitializing KKClusterPhase = "Initializing"
+	// KKClusterPhaseRunning indicates that the cluster installation has been completed.
+	KKClusterPhaseRunning KKClusterPhase = "Running"
+	// KKClusterPhaseUpgrading indicates that the cluster is being upgraded.
+	KKClusterPhaseUpgrading KKClusterPhase = "Upgrading"
+	// KKClusterPhaseScaling indicates that the cluster is undergoing scaling operations (expansion or reduction).
+	KKClusterPhaseScaling KKClusterPhase = "Scaling"
+	// KKClusterPhaseNodeError indicates a node error. Any node in the cluster has entered a 'not ready' state.
+	KKClusterPhaseNodeError KKClusterPhase = "NodeError"
+	// KKClusterPhaseUpgradeError indicates that the cluster upgrade operation has failed.
+	KKClusterPhaseUpgradeError KKClusterPhase = "UpgradeError"
+	// KKClusterPhaseFailed indicates that the cluster has encountered a critical failure.
+	KKClusterPhaseFailed KKClusterPhase = "Failed"
+)
+
 type InventoryHostConnector struct {
 	// Type to connector the host.
 	Type string `json:"type,omitempty"`
@@ -127,6 +148,8 @@ type KKClusterSpec struct {
 
 // KKClusterStatus defines the observed state of KKCluster.
 type KKClusterStatus struct {
+	// Status of the cluster.
+	Phase KKClusterPhase `json:"status,omitempty"`
 	// if Ready to create cluster. usage after inventory is ready.
 	Ready bool `json:"ready,omitempty"`
 
